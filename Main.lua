@@ -39,7 +39,7 @@ function Main()
 		obj_A_value=240,
 	}
 	myOBJ_B = OBJ_B {
-		obj_B_value=240,
+		obj_B_value=140,
 	}
 	local x=5
 	myOBJ_A:updateFromA(x)
@@ -64,7 +64,6 @@ function Main()
 					value:Main(c)
 				end)
 				coroutine.resume(thread[c])
-				
 			end
 			print(myOBJ_A.obj_A_value)
 			print(myOBJ_B.obj_B_value,"\n")
