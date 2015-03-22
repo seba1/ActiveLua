@@ -1,34 +1,8 @@
-
-function createID(object, ID)
-	--user has to remember about that ID that he wants to create must be unique.
-	--	table     ID
-	--  ________________
-	-- | objA_ID | objA |
-	-- |_________|______|
-	-- | objB_ID | objB |	> objsIDs < > {{A_ID,A}},{B_ID,B}...}
-	-- |_________|______|	
-	-- | etc..   | etc..|	table of ID's
-	-- |_________|______|
-	
-	-- check if obj id has been already added
-	local objectAndID = {ID, object}
-	if objsIDs == nil then
-		objsIDs={} --must be global
-		table.insert(objsIDs, objectAndID)
-	else
-		local eachID
-		local notfound = true
-		for k, eachID in pairs(objsIDs) do
-			if (k == 1) and (eachID == object) then
-				notfound=false
-			end
-		end
-		if notfound then
-			table.insert(objsIDs, objectAndID)
-		end
-	end
-end
-
+--	Name:	Sebastian Horoszkiewicz
+--	Date:	20/03/2015
+--	Title:	Active Lua
+--	Purpose: Implementation of active objects into Lua to allow parallelization
+--			 across multiple cores.
 --send message: from which obj, to which obj, funct, argTable
 function sendMsg(fromObj, toObj, funct, argTable, linda)
 	--   from     to        fun   argTable
@@ -37,20 +11,24 @@ function sendMsg(fromObj, toObj, funct, argTable, linda)
 	-- |______|_________|_______|____|
 	
 	-- if no errors send message
-	local message = {tostring(fromObj), toObj, funct, argTable}
+	local message = {fromObj, toObj, funct, argTable}
 	local msgID = tostring(toObj)
 	linda:send(msgID, message)
 end
 
-function getMsg(objectID,linda)
+function getMsg(obj, objectID,linda)
 	--pass in self or id of object requiring message
 	if type(objectID)== "table" then
 		objectID = tostring(objectID)
 	end
-	local message = nil
 	-- If timed out then no more messages for me
-	local key, message = linda:receive(2.5, objectID)
-	return message
+	local key, message = linda:receive(0.1, objectID)
+	if message ~= nil then
+		message[2]=obj
+		return message		
+	else
+		return 0
+	end
 end
 
 function execMsg(messageTable)
@@ -67,35 +45,23 @@ function execMsg(messageTable)
 	fun = tableElements[3]
 	values = tableElements[4]
 
-	-- from `objsIDs` get table corresponding to the id provided
-	found = false
-	for k, v in pairs(objsIDs) do
-		for key, val in pairs(v) do
-			if (key == 1) and (to == val) then
-				found = true
-			elseif (found == true)and (key == 2) then
-				to = val
-			end
-		end
-		if found then
-			break
-		end
-	end
 	--run object function with args
 	assert(loadstring('to:'..fun..'(...)'))(unpack(values))
 end
 
-function runMain(objID, numOfloops, linda)
-	local messagesForMe={}
+function runMain(obj, objID, NUM_OF_LOOPS, linda)
 	local x=0
-	for x=0,numOfloops do
-		x=x+1
-		messagesForMe=nil
-		messagesForMe = getMsg(objID,linda)
-		if messagesForMe ~= nil then
-			execMsg(messagesForMe)		
+	for x=0,NUM_OF_LOOPS do
+		local messagesForMe={}
+		messagesForMe = getMsg(obj, objID,linda)
+		if messagesForMe == 0 then
+			return 0 -- no more messages for this obj
+		else
+			execMsg(messagesForMe)
 		end
 	end
+	-- if one is returend then it means that there are more messages for that object
+	return 1
 end
 
 -- Function copy creates a shallow copy of an object,
@@ -114,40 +80,89 @@ function copy(t) -- shallow-copy a table
     return target
 end
 
--- starts everything
-function start(allOBJs, numOfloops, lanes)
-	local copied={}
-	local threadList={}
-	local t={}
-	local i=0
-	local objID={}
-	objID[0]='OBJ_A'
-	objID[1]='OBJ_B'
-	objID[2]='OBJ_C'
-	
-	
-	print ''
-	-- Get number of cores
-	print('Number of cores: '.. tonumber(os.getenv("NUMBER_OF_PROCESSORS")))
-	print '\n'
-	
-	NUM_OF_CORES = 2 --tonumber(os.getenv("NUMBER_OF_PROCESSORS"))
-	
-	--shallow copy of all objects
-	for k, obj in pairs(allOBJs) do
-		copied[k-1] = copy(obj)
-		--Create lanes
-		threadList[k-1] = lanes.gen("*",activeLane)
+function activeLane(OBJ, objID, NUM_OF_LOOPS, linda)
+	--local oo = require "loop.simple"
+	require "ActiveLua"
+	----------------------- Main -----------------------
+	while true do
+		local state = runMain(OBJ, objID, NUM_OF_LOOPS, linda)
+		if state ~= 0 then
+			idAndObj = {OBJ, objID, state}
+			linda:send('finished', idAndObj)
+		else
+			-- no more messages for this object
+			idAndObj = {OBJ, objID, 1}
+			linda:send('finished', idAndObj)
+		end
+		local _, newObj = linda:receive(0.1, 'nextMessage')
+		OBJ, objID = unpack(newObj)
 	end
-	-- Run lanes
-	for i=0,NUM_OF_CORES do
-		t[i] = threadList[i](copied[i],objID[i], numOfloops)
+end
+
+-- starts everything
+function start(allOBJs, lanes, linda)
+	local copied, threadList, t, objID = {},{},{},{}
+	local NUM_OF_LOOPS=1 --start at 0
+	local finished, val, i, c = 1,0,0,0
+	local k,v
+	local copyOfAllObjs = {}
+	
+	-- Get number of cores (-1 because Main is one thread and my counting starts at 0)
+	NUM_OF_CORES = tonumber(os.getenv("NUMBER_OF_PROCESSORS"))-2
+	
+	for k, obj in pairs(allOBJs) do
+		if k % 2 == 0 then
+			objID[c] = obj
+			c=c+1
+		else
+			--shallow copy of object
+			copied[i] = copy(obj)
+			i=i+1
+		end
 	end
 
+	for i=0,NUM_OF_CORES do
+		--Create lanes
+		threadList[i] = lanes.gen("*",activeLane)
+		-- Remove used values
+		table.remove(allOBJs, 1)
+		table.remove(allOBJs, 1)
+		-- Run lanes
+		t[i] = threadList[i](copied[i],objID[i], NUM_OF_LOOPS, linda)
+	end
+	
+	--------------------------------------------------------------------------
+	-------------------------- LOOPING THROUGH ALL ---------------------------
+	--------------------------------------------------------------------------
+	
+	while true do
+		local obj,obid, key, message, state = nil,nil,nil,nil,nil
+		key, message = linda:receive(0.1, 'finished')
+		if message ~= nil then
+			obj, obid, state = unpack(message)
+			if state == 1 then
+				-- put it back on stack of obj's
+				table.insert(allOBJs, obj)
+				table.insert(allOBJs, obid)
+			end
+			-- get next msg
+			local head, head2 = nil, nil
+			head = table.remove(allOBJs, 1)
+			head2 = table.remove(allOBJs, 1)
+			if head ~= nil then
+				local sendThis = {head, head2}
+				linda:send('nextMessage', sendThis)
+			end
+		end
+	end
+	
 	-- Terminate lanes
 	for i=0,NUM_OF_CORES do
 		t[i]:join()
 	end
+	
+	-- Finished with messaging
+	return 0
 end
 
 
