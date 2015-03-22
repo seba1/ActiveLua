@@ -3,6 +3,7 @@
 --	Title:	Active Lua
 --	Purpose: Implementation of active objects into Lua to allow parallelization
 --			 across multiple cores.
+
 --send message: from which obj, to which obj, funct, argTable
 function sendMsg(fromObj, toObj, funct, argTable, linda)
 	--   from     to        fun   argTable
@@ -22,7 +23,7 @@ function getMsg(obj, objectID,linda)
 		objectID = tostring(objectID)
 	end
 	-- If timed out then no more messages for me
-	local key, message = linda:receive(0.1, objectID)
+	local key, message = linda:receive(0.0, objectID)
 	if message ~= nil then
 		message[2]=obj
 		return message		
@@ -81,21 +82,26 @@ function copy(t) -- shallow-copy a table
 end
 
 function activeLane(OBJ, objID, NUM_OF_LOOPS, linda)
-	--local oo = require "loop.simple"
 	require "ActiveLua"
 	----------------------- Main -----------------------
 	while true do
-		local state = runMain(OBJ, objID, NUM_OF_LOOPS, linda)
-		if state ~= 0 then
-			idAndObj = {OBJ, objID, state}
-			linda:send('finished', idAndObj)
-		else
-			-- no more messages for this object
-			idAndObj = {OBJ, objID, 1}
-			linda:send('finished', idAndObj)
+		if OBJ ~= nil and objID~=nil then
+			local state = runMain(OBJ, objID, NUM_OF_LOOPS, linda)
+			if state ~= 0 then
+				idAndObj = {OBJ, objID, state}
+				linda:send('finished', idAndObj)
+			else
+				-- no more messages for this object
+				idAndObj = {OBJ, objID, 1}
+				linda:send('finished', idAndObj)
+			end
 		end
-		local _, newObj = linda:receive(0.1, 'nextMessage')
-		OBJ, objID = unpack(newObj)
+		local _, newObj = linda:receive(0.0, 'nextMessage')
+		if newObj ~= nil then
+			OBJ, objID = unpack(newObj)
+		else
+			OBJ,objID = nil,nil
+		end
 	end
 end
 
@@ -137,7 +143,20 @@ function start(allOBJs, lanes, linda)
 	
 	while true do
 		local obj,obid, key, message, state = nil,nil,nil,nil,nil
-		key, message = linda:receive(0.1, 'finished')
+		-- if new objects were dynamically added then add them to the list
+		key, message = linda:receive(0.0, 'insertNewObjs')
+		if message ~=nil then
+
+			obj, obid = unpack(message)
+--print ('>>>',OBJ_A)
+			
+--obj:printMeeee()
+			table.insert(allOBJs, obj)
+			table.insert(allOBJs, obid)
+		end
+		obj,obid, message= nil,nil,nil
+		-- get object that were executed on the thread
+		key, message = linda:receive(0.0, 'finished')
 		if message ~= nil then
 			obj, obid, state = unpack(message)
 			if state == 1 then
@@ -165,7 +184,11 @@ function start(allOBJs, lanes, linda)
 	return 0
 end
 
-
+-- insertNewObj allows user to add new objects dynamically
+function insertNewObj(obj, objID, linda)
+	local newObjs={obj, objID}
+	linda:send('insertNewObjs', newObjs)
+end
 
 
 
