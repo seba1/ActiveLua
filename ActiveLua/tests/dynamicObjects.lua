@@ -6,14 +6,16 @@ local oo = require "loop.simple"
 local lanes = require "lanes".configure()
 local linda = lanes.linda()
 require "ActiveLua"
+local lockf = lanes.genlock(linda,"M",1)
 
 ------------------------------------------------------------------------------------
 ------------------------------- CREATE OBJECTS -------------------------------------
 ------------------------------------------------------------------------------------
 ---------------------------------- OBJ_A -------------------------------------------
 local OBJ_A = oo.class {
-		x=1
-	}
+	x=1,
+	objIDList={}
+}
 
 function OBJ_A:newObj(x)
 	print ('x: '..x)
@@ -22,18 +24,44 @@ function OBJ_A:newObj(x)
 		x=x-1
 		for i=1, 2 do
 			local obj = copy(OBJ_A)
-			obj:newObj(x)
-			--OBJ_A:createNewId()
+			lockf(1)
+				local objID = OBJ_A:createNewId()
+			lockf(-1)
 			--addNewObject
-			--sendMsg(self, "OBJ_A", "newObj", {x}, linda)
+			insertNewObj(obj, objID, linda)
+			--send new msg
+			sendMsg(self, objID, "newObj", {x}, linda)
 		end
 	end
 end
 
-function OBJ_A:beginSending()
-	sendMsg(self, "OBJ_A", "newObj", {3}, linda)
+function OBJ_A:createNewId()
+	local objID=''
+	local valid=true
+	while valid do
+		valid = false
+		objID = OBJ_A:randomString(10)
+		for k,ob in pairs(self.objIDList) do
+			if ob == objID then
+				valid=true
+			end
+		end
+	end
+	table.insert(self.objIDList, objID)	
+	return objID
 end
 
+function OBJ_A:beginSending()
+	sendMsg(self, "OBJ_A", "newObj", {10}, linda)
+end
+
+function OBJ_A:randomString(len)
+	local i,str = 0,""
+	for i=1, len do
+		str=str..string.char(math.random(65, 90)) -- Get random char using ascii
+	end
+	return str
+end
 ------------------------------------------------------------------------------------
 ------------------------------------- THE MAIN -------------------------------------
 ------------------------------------------------------------------------------------
