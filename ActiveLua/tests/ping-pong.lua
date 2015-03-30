@@ -1,7 +1,4 @@
 os.execute("cls")
-package.path = ';.\\?.lua;C:\\Program Files (x86)\\Lua\\5.1\\lua\\?.lua;C:\\Program Files (x86)\\Lua\\5.1\\lua\\?\\init.lua;C:\\Program Files (x86)\\Lua\\5.1\\?.lua;C:\\Program Files (x86)\\Lua\\5.1\\?\\init.lua;C:\\Program Files (x86)\\Lua\\5.1\\lua\\?.luac'
-package.cpath = ';.\\?.dll;.\\?51.dll;C:\\Program Files (x86)\\Lua\\5.1\\?.dll;C:\\Program Files (x86)\\Lua\\5.1\\?51.dll;C:\\Program Files (x86)\\Lua\\5.1\\clibs\\?.dll;C:\\Program Files (x86)\\Lua\\5.1\\clibs\\?51.dll;C:\\Program Files (x86)\\Lua\\5.1\\loadall.dll;C:\\Program Files (x86)\\Lua\\5.1\\clibs\\loadall.dll;C:\\Program Files (x86)\\Lua\\5.1\\lib\\?.dll'
-
 local oo = require "loop.simple"
 local lanes = require "lanes".configure()
 local linda = lanes.linda()
@@ -11,20 +8,36 @@ require "ActiveLua"
 ------------------------------- CREATE OBJECTS -------------------------------------
 ------------------------------------------------------------------------------------
 ---------------------------------- OBJ_A -------------------------------------------
-local OBJ_A = oo.class {}
+local OBJ_A = oo.class {
+	i=0
+}
 
-function OBJ_A:ping()
-	print 'Ping'
-	sendMsg(self, "OBJ_B", "pong", {}, linda)
+function OBJ_A:ping(startTime)
+	if self.i<8000 then
+		self.i=self.i+1
+		print 'Ping'
+		print(string.format("elapsed time: %.2f\n", os.clock() - startTime))
+		sendMsg(self, "OBJ_B", "pong", {startTime}, linda)
+	else
+		return 0
+	end
 end
 
 ---------------------------------- OBJ_B -------------------------------------------
-local OBJ_B = oo.class {}
+local OBJ_B = oo.class {
+	i=0
+}
 
-function OBJ_B:pong()
-	print 'Pong\n'
-	os.execute("ping 1.1.1.1 -n 1 -w 1000 > nul") -- create delay
-	sendMsg(self, "OBJ_A", "ping", {}, linda)
+function OBJ_B:pong(startTime)
+	if self.i<8000 then
+		self.i=self.i+1
+		print(self.i)
+		print 'Pong\n'
+		print(string.format("elapsed time: %.2f\n", os.clock() - startTime))
+		sendMsg(self, "OBJ_A", "ping", {startTime}, linda)
+	else
+		return 0
+	end
 end
 ------------------------------------------------------------------------------------
 ------------------------------------- THE MAIN -------------------------------------
@@ -32,10 +45,10 @@ end
 -- Put all objects into list
 local objList={	OBJ_A, "OBJ_A",
 				OBJ_B, "OBJ_B"}
-
+local startTime = os.clock()
 -- Run some object functions that will initialize messages
-OBJ_A:ping()
-OBJ_B:pong()
+OBJ_A:ping(startTime)
+OBJ_B:pong(startTime)
 
 -- send list of objects and start sending and executing messages
 start(objList, lanes, linda)

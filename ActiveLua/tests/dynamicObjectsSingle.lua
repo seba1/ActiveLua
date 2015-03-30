@@ -24,10 +24,7 @@ function OBJ_A:newObj(x,startTime)
 			lockf(1)
 				local objID = OBJ_A:createNewId()
 			lockf(-1)
-			--addNewObject
-			insertNewObj(obj, objID, linda)
-			--send new msg
-			sendMsg(self, objID, "newObj", {x,startTime}, linda)
+			obj:newObj(x,startTime)
 		end
 	else
 		print(string.format("elapsed time: %.2f\n", os.clock() - startTime))
@@ -70,10 +67,7 @@ local startTime = os.clock()
 local objList={	OBJ_A, "OBJ_A"}
 
 -- Run some object functions that will initialize messages
-OBJ_A:beginSending(startTime)
-
--- send list of objects and start sending and executing messages
-start(objList, lanes, linda)
+OBJ_A:newObj(10,startTime)
 
 ------------------------------------- END ----------------------------------------
 

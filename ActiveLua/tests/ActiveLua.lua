@@ -10,21 +10,16 @@ function sendMsg(fromObj, toObj, funct, argTable, linda)
 	--  _____________________________
 	-- | objB | objA_ID | funct | {} |
 	-- |______|_________|_______|____|
-	
-	-- if no errors send message
 	local message = {fromObj, toObj, funct, argTable}
 	local msgID = tostring(toObj)
 	linda:send(msgID, message)
 end
 
 function getMsg(obj, objectID,linda)
-	--pass in self or id of object requiring message
-	if type(objectID)== "table" then
-		objectID = tostring(objectID)
-	end
 	-- If timed out then no more messages for me
 	local key, message = linda:receive(0.0, objectID)
 	if message ~= nil then
+		--replace string id with the actual object
 		message[2]=obj
 		return message		
 	else
@@ -108,7 +103,7 @@ end
 -- starts everything
 function start(allOBJs, lanes, linda)
 	local copied, threadList, t, objID = {},{},{},{}
-	local NUM_OF_LOOPS=1 --start at 0
+	local NUM_OF_LOOPS=20 --start at 0
 	local finished, val, i, c = 1,0,0,0
 	local k,v
 	local copyOfAllObjs = {}
@@ -146,11 +141,7 @@ function start(allOBJs, lanes, linda)
 		-- if new objects were dynamically added then add them to the list
 		key, message = linda:receive(0.0, 'insertNewObjs')
 		if message ~=nil then
-
 			obj, obid = unpack(message)
---print ('>>>',OBJ_A)
-			
---obj:printMeeee()
 			table.insert(allOBJs, obj)
 			table.insert(allOBJs, obid)
 		end

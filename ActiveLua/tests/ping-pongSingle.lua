@@ -3,74 +3,52 @@ local oo = require "loop.simple"
 local lanes = require "lanes".configure()
 local linda = lanes.linda()
 require "ActiveLua"
-local lockf = lanes.genlock(linda,"M",1)
 
 ------------------------------------------------------------------------------------
 ------------------------------- CREATE OBJECTS -------------------------------------
 ------------------------------------------------------------------------------------
 ---------------------------------- OBJ_A -------------------------------------------
 local OBJ_A = oo.class {
-	x=1,
-	objIDList={}
+	i=0
 }
 
-function OBJ_A:newObj(x,startTime)
-	print ('x: '..x)
-	if x~=1 then
-		local i=0
-		x=x-1
-		for i=1, 2 do
-			local obj = copy(OBJ_A)
-			lockf(1)
-				local objID = OBJ_A:createNewId()
-			lockf(-1)
-			--addNewObject
-			insertNewObj(obj, objID, linda)
-			--send new msg
-			sendMsg(self, objID, "newObj", {x,startTime}, linda)
-		end
-	else
+function OBJ_A:ping(startTime,obj)
+	if self.i<8000 then
+		self.i=self.i+1
+		print 'Ping'
 		print(string.format("elapsed time: %.2f\n", os.clock() - startTime))
+		obj:pong(startTime, self)
+	else
+		return 0
 	end
 end
 
-function OBJ_A:createNewId()
-	local objID=''
-	local valid=true
-	while valid do
-		valid = false
-		objID = OBJ_A:randomString(10)
-		for k,ob in pairs(self.objIDList) do
-			if ob == objID then
-				valid=true
-			end
-		end
-	end
-	table.insert(self.objIDList, objID)	
-	return objID
-end
+---------------------------------- OBJ_B -------------------------------------------
+local OBJ_B = oo.class {
+	i=0
+}
 
-function OBJ_A:beginSending(startTime)
-	sendMsg(self, "OBJ_A", "newObj", {10,startTime}, linda)
-end
-
-function OBJ_A:randomString(len)
-	local i,str = 0,""
-	for i=1, len do
-		str=str..string.char(math.random(65, 90)) -- Get random char using ascii
+function OBJ_B:pong(startTime, obj)
+	if self.i<8000 then
+		self.i=self.i+1
+		print 'Pong\n'
+		print(string.format("elapsed time: %.2f\n", os.clock() - startTime))
+		print (self.i)
+		obj:ping(startTime, self)
+	else
+		return 0
 	end
-	return str
 end
 ------------------------------------------------------------------------------------
 ------------------------------------- THE MAIN -------------------------------------
 ------------------------------------------------------------------------------------
-local startTime = os.clock()
-
 -- Put all objects into list
-local objList={	OBJ_A, "OBJ_A"}
-
+local objList={	OBJ_A, "OBJ_A",
+				OBJ_B, "OBJ_B"}
+local startTime = os.clock()
 -- Run some object functions that will initialize messages
-OBJ_A:beginSending(startTime)
+OBJ_A:ping(startTime,OBJ_B)
+OBJ_B:pong(startTime,OBJ_A)
 
 -- send list of objects and start sending and executing messages
 start(objList, lanes, linda)
