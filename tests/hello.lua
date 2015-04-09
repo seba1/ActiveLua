@@ -2,7 +2,7 @@ os.execute("cls")
 local oo = require "loop.simple"
 local lanes = require "lanes".configure()
 local linda = lanes.linda()
-require "ActiveLua"
+require "activelua"
 
 ------------------------------------------------------------------------------------
 ------------------------------- CREATE OBJECTS -------------------------------------
