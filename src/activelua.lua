@@ -3,6 +3,7 @@
 --	Title:	Active Lua
 --	Purpose: Implementation of active objects into Lua to allow parallelization
 --			 across multiple cores.
+--	Copyright (c) 2015, Sebastian Horoszkiewicz
 
 -- Function 'copy' creates a shallow copy of an object,
 -- Code for this function wasn't written by my

@@ -1,3 +1,6 @@
+--	Name:	Sebastian Horoszkiewicz
+--	Date:	20/03/2015
+--	Copyright (c) 2015, Sebastian Horoszkiewicz
 os.execute("cls")
 local oo = require "loop.simple"
 local lanes = require "lanes".configure()
