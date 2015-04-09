@@ -15,7 +15,7 @@ package = "ActiveLua-LearningTool"
 	   This can be used by anyone who wishes to implement active objects into lua as an example.
 	   
 	   INSTALLATION
-	   Run 'luarocks install ActiveLua-LearningTool' command.
+	   Run 'luarocks install activelua-learningtool' command.
     ]],
     homepage = "https://github.com/seba1/ActiveLua",
     license = "MIT/X11"
