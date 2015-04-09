@@ -40,11 +40,10 @@ end
 -- starts everything
 function start(allOBJs, lanes, linda)
 	local copied, threadList, t, objID = {},{},{},{}
-	local NUM_OF_LOOPS=20 --start at 0
-	local val, i, c = 0,0,0
+	local NUM_OF_LOOPS=10 --start at 0
+	local finished, val, i, c = 1,0,0,0
 	local k,v
 	local copyOfAllObjs = {}
-	
 	-- Get number of cores (-1 because Main is one thread and my counting starts at 0)
 	local NUM_OF_CORES = tonumber(os.getenv("NUMBER_OF_PROCESSORS"))-2
 	
@@ -62,31 +61,30 @@ function start(allOBJs, lanes, linda)
 	for i=0,NUM_OF_CORES do
 		--Create lanes
 		threadList[i] = lanes.gen("*",activeLane)
-		-- Remove used objects
+		-- Remove used values
 		table.remove(allOBJs, 1)
 		table.remove(allOBJs, 1)
 		-- Run lanes
 		t[i] = threadList[i](copied[i],objID[i], NUM_OF_LOOPS, linda)
 	end
-	
 	--------------------------------------------------------------------------
 	-------------------------- LOOPING THROUGH ALL ---------------------------
 	--------------------------------------------------------------------------
 	
 	while true do
 		local obj,obid, key, message, state = nil,nil,nil,nil,nil
-		-- if new objects were dynamically added then add them to the queue of all objs
-		local key, message = linda:receive(0.0, 'insertNewObjs')
+		-- if new objects were dynamically added then add them to the list
+		key, message = linda:receive(0.0, 'insertNewObjs')
 		if message ~=nil then
 			obj, obid = unpack(message)
 			table.insert(allOBJs, obj)
 			table.insert(allOBJs, obid)
 		end
-		local obj,obid, message= nil,nil,nil
+		obj,obid, message= nil,nil,nil
 		-- get object that were executed on the thread
-		local key, message = linda:receive(0.0, 'finished')
+		key, message = linda:receive(0.0, 'finished')
 		if message ~= nil then
-			local obj, obid, state = unpack(message)
+			obj, obid, state = unpack(message)
 			if state == 1 then
 				-- put it back on stack of obj's
 				table.insert(allOBJs, obj)
@@ -94,8 +92,8 @@ function start(allOBJs, lanes, linda)
 			end
 			-- get next msg
 			local head, head2 = nil, nil
-			local head = table.remove(allOBJs, 1)
-			local head2 = table.remove(allOBJs, 1)
+			head = table.remove(allOBJs, 1)
+			head2 = table.remove(allOBJs, 1)
 			if head ~= nil then
 				local sendThis = {head, head2}
 				linda:send('nextMessage', sendThis)
@@ -121,16 +119,15 @@ function activeLane(OBJ, objID, NUM_OF_LOOPS, linda)
 	----------------------- Main -----------------------
 	while true do
 		if OBJ ~= nil and objID~=nil then
-			runMain(OBJ, objID, NUM_OF_LOOPS, linda)
-			--looped object N times, now send request for next object
-			idAndObj = {OBJ, objID, 1}
+			local state = runMain(OBJ, objID, NUM_OF_LOOPS, linda)
+			idAndObj = {OBJ, objID, state}
 			linda:send('finished', idAndObj)
 		end
 		local _, newObj = linda:receive(0.0, 'nextMessage')
 		if newObj ~= nil then
 			OBJ, objID = unpack(newObj)
 		else
-			local OBJ,objID = nil,nil
+			OBJ,objID = nil,nil
 		end
 	end
 end
@@ -143,7 +140,7 @@ function getMsg(obj, objectID,linda)
 		message[2]=obj
 		return message		
 	else
-		return 0
+		return nil
 	end
 end
 
@@ -167,13 +164,16 @@ end
 
 function runMain(obj, objID, NUM_OF_LOOPS, linda)
 	local x=0
-	for x=0,NUM_OF_LOOPS do
-		local messagesForMe={}
+	local messagesForMe={}
+	for x=0, NUM_OF_LOOPS do
+		messagesForMe={}
 		messagesForMe = getMsg(obj, objID,linda)
-		if messagesForMe ~= 0 then
+		if messagesForMe ~= nil then
 			execMsg(messagesForMe)
+
 		end
 	end
+	return 1
 end
 
 
