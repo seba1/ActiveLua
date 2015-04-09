@@ -7,12 +7,16 @@ LOOP: 	https://rocks.moonscript.org/modules/luarocks/loop
 NOTICE: This extension was only tested with lua lanes and LOOP rocks, using other rocks may result with unexpected behaviour of your script and/or crashing your script.
 
 # INSTALLATION
-You can install this extension in two ways;
+You can install this extension in two ways:
+
 1. First way is to use luarocks
+
 You will be required to have installed luarocks on your machine. You can download it form https://github.com/keplerproject/luarocks/wiki/Download
 After you have installed luarocks run 'luarocks install activelua-learningtool' command in command prompt.
 
-2. Second way is to download source folder from github which can be found here: https://github.com/seba1/ActiveLua and after that run 'luarocks make' in the source folder (the one containing README.md)
+2. Second way is to download source folder from github
+
+It can be found here: https://github.com/seba1/ActiveLua and after that run 'luarocks make' in the source folder (the one containing README.md)
 
 # HOW TO USE IT
 First lines of your script should be exactly the same as below:
