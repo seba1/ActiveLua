@@ -6,43 +6,66 @@ local oo = require "loop.simple"
 local lanes = require "lanes".configure()
 local linda = lanes.linda()
 require "activelua"
+local lockf = lanes.genlock(linda,"M",1)
 
 ------------------------------------------------------------------------------------
 ------------------------------- CREATE OBJECTS -------------------------------------
 ------------------------------------------------------------------------------------
 ---------------------------------- OBJ_A -------------------------------------------
-local OBJ_A = oo.class {}
+local OBJ_A = oo.class {
+	x=1,
+	objIDList={}
+}
 
-function OBJ_A:askForHelloFromB()
-	sendMsg(self, "OBJ_B", "helloB", {}, linda) -- this will only work if linda is passed..	
+function OBJ_A:newObj(x,startTime)
+	print ('x: '..x)
+	if x~=1 then
+		local i=0
+		x=x-1
+		for i=1, 2 do
+			local obj = copy(OBJ_A)
+			lockf(1)
+				local objID = OBJ_A:createNewId()
+			lockf(-1)
+			obj:newObj(x,startTime)
+		end
+	else
+		print(string.format("elapsed time: %.2f\n", os.clock() - startTime))
+	end
 end
 
-function OBJ_A:helloA()
-	print 'Hello From A'
+function OBJ_A:createNewId()
+	local objID=''
+	local valid=true
+	while valid do
+		valid = false
+		objID = OBJ_A:randomString(10)
+		for k,ob in pairs(self.objIDList) do
+			if ob == objID then
+				valid=true
+			end
+		end
+	end
+	table.insert(self.objIDList, objID)	
+	return objID
 end
 
----------------------------------- OBJ_B -------------------------------------------
-local OBJ_B = oo.class {}
-
-function OBJ_B:askForHelloFromA()
-	sendMsg(self, "OBJ_A", "helloA", {}, linda)
-end
-
-function OBJ_B:helloB()
-	print 'Hello From B'
+function OBJ_A:randomString(len)
+	local i,str = 0,""
+	for i=1, len do
+		str=str..string.char(math.random(65, 90)) -- Get random char using ascii
+	end
+	return str
 end
 ------------------------------------------------------------------------------------
 ------------------------------------- THE MAIN -------------------------------------
 ------------------------------------------------------------------------------------
+local startTime = os.clock()
+
 -- Put all objects into list
-local objList={	OBJ_A, "OBJ_A",
-				OBJ_B, "OBJ_B"}
+local objList={	OBJ_A, "OBJ_A"}
 
 -- Run some object functions that will initialize messages
-OBJ_A:askForHelloFromB()
-OBJ_B:askForHelloFromA()
-
--- send list of objects and start sending and executing messages
-start(objList, lanes, linda)
+OBJ_A:newObj(13,startTime)
 
 ------------------------------------- END ----------------------------------------

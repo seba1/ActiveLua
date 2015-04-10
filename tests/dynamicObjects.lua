@@ -18,7 +18,7 @@ local OBJ_A = oo.class {
 	objIDList={}
 }
 
-function OBJ_A:newObj(x,startTime)
+function OBJ_A:newObj(x)
 	print ('x: '..x)
 	if x~=1 then
 		local i=0
@@ -31,10 +31,8 @@ function OBJ_A:newObj(x,startTime)
 			--addNewObject
 			insertNewObj(obj, objID, linda)
 			--send new msg
-			sendMsg(self, objID, "newObj", {x,startTime}, linda)
+			sendMsg(self, objID, "newObj", {x}, linda)
 		end
-	else
-		print(string.format("elapsed time: %.2f\n", os.clock() - startTime))
 	end
 end
 
@@ -54,8 +52,8 @@ function OBJ_A:createNewId()
 	return objID
 end
 
-function OBJ_A:beginSending(startTime)
-	sendMsg(self, "OBJ_A", "newObj", {10,startTime}, linda)
+function OBJ_A:beginSending()
+	sendMsg(self, "OBJ_A", "newObj", {3}, linda)
 end
 
 function OBJ_A:randomString(len)
@@ -68,39 +66,14 @@ end
 ------------------------------------------------------------------------------------
 ------------------------------------- THE MAIN -------------------------------------
 ------------------------------------------------------------------------------------
-local startTime = os.clock()
 
 -- Put all objects into list
 local objList={	OBJ_A, "OBJ_A"}
 
 -- Run some object functions that will initialize messages
-OBJ_A:beginSending(startTime)
+OBJ_A:beginSending()
 
 -- send list of objects and start sending and executing messages
 start(objList, lanes, linda)
 
 ------------------------------------- END ----------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
