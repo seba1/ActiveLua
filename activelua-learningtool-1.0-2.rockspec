@@ -1,5 +1,5 @@
 package = "ActiveLua-LearningTool"
- version = "1.0-1"
+ version = "1.0-2"
  source = {
     url = "git://github.com/seba1/ActiveLua",
     tag = "v1.0",
