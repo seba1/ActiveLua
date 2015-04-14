@@ -3,68 +3,9 @@
 --	Title:	Active Lua
 --	Purpose: Implementation of active objects into Lua to allow parallelization
 --			 across multiple cores.
---send message: from which obj, to which obj, funct, argTable
-function sendMsg(fromObj, toObj, funct, argTable, linda)
-	--   from     to        fun   argTable
-	--  _____________________________
-	-- | objB | objA_ID | funct | {} |
-	-- |______|_________|_______|____|
-	
-	-- if no errors send message
-	local message = {fromObj, toObj, funct, argTable}
-	local msgID = tostring(toObj)
-	linda:send(msgID, message)
-end
+--	Copyright (c) 2015, Sebastian Horoszkiewicz
 
-function getMsg(obj, objectID,linda)
-	--pass in self or id of object requiring message
-	if type(objectID)== "table" then
-		objectID = tostring(objectID)
-	end
-	-- If timed out then no more messages for me
-	local key, message = linda:receive(0.1, objectID)
-	if message ~= nil then
-		message[2]=obj
-		return message		
-	else
-		return 0
-	end
-end
-
-function execMsg(messageTable)
-	local tableElements={}
-	local values=""
-	local i=0
-	local keyset={}
-	for key, val in pairs(messageTable) do
-		i=i+1
-		keyset[i]=key
-		tableElements[i] = messageTable[keyset[i]]
-	end
-	to = tableElements[2]
-	fun = tableElements[3]
-	values = tableElements[4]
-
-	--run object function with args
-	assert(loadstring('to:'..fun..'(...)'))(unpack(values))
-end
-
-function runMain(obj, objID, NUM_OF_LOOPS, linda)
-	local x=0
-	for x=0,NUM_OF_LOOPS do
-		local messagesForMe={}
-		messagesForMe = getMsg(obj, objID,linda)
-		if messagesForMe == 0 then
-			return 0 -- no more messages for this obj
-		else
-			execMsg(messagesForMe)
-		end
-	end
-	-- if one is returend then it means that there are more messages for that object
-	return 1
-end
-
--- Function copy creates a shallow copy of an object,
+-- Function 'copy' creates a shallow copy of an object,
 -- Code for this function wasn't written by my
 -- Link to the source: https://gist.github.com/MihailJP/3931841
 function copy(t) -- shallow-copy a table
@@ -80,35 +21,32 @@ function copy(t) -- shallow-copy a table
     return target
 end
 
-function activeLane(OBJ, objID, NUM_OF_LOOPS, linda)
-	--local oo = require "loop.simple"
-	require "ActiveLua"
-	----------------------- Main -----------------------
-	while true do
-		local state = runMain(OBJ, objID, NUM_OF_LOOPS, linda)
-		if state ~= 0 then
-			idAndObj = {OBJ, objID, state}
-			linda:send('finished', idAndObj)
-		else
-			-- no more messages for this object
-			idAndObj = {OBJ, objID, 1}
-			linda:send('finished', idAndObj)
-		end
-		local _, newObj = linda:receive(0.1, 'nextMessage')
-		OBJ, objID = unpack(newObj)
-	end
+-- insertNewObj allows user to add new objects dynamically
+function insertNewObj(obj, objID, linda)
+	local newObjs={obj, objID}
+	linda:send('insertNewObjs', newObjs)
+end
+
+--send message: from which obj, to which obj, funct, argTable
+function sendMsg(fromObj, toObj, funct, argTable, linda)
+	--   from     to        fun   argTable
+	--  _____________________________
+	-- | objB | objA_ID | funct | {} |
+	-- |______|_________|_______|____|
+	local message = {fromObj, toObj, funct, argTable}
+	local msgID = tostring(toObj)
+	linda:send(msgID, message)
 end
 
 -- starts everything
 function start(allOBJs, lanes, linda)
 	local copied, threadList, t, objID = {},{},{},{}
-	local NUM_OF_LOOPS=1 --start at 0
+	local NUM_OF_LOOPS=10 --start at 0
 	local finished, val, i, c = 1,0,0,0
 	local k,v
 	local copyOfAllObjs = {}
-	
 	-- Get number of cores (-1 because Main is one thread and my counting starts at 0)
-	NUM_OF_CORES = tonumber(os.getenv("NUMBER_OF_PROCESSORS"))-2
+	local NUM_OF_CORES = tonumber(os.getenv("NUMBER_OF_PROCESSORS"))-2
 	
 	for k, obj in pairs(allOBJs) do
 		if k % 2 == 0 then
@@ -130,14 +68,22 @@ function start(allOBJs, lanes, linda)
 		-- Run lanes
 		t[i] = threadList[i](copied[i],objID[i], NUM_OF_LOOPS, linda)
 	end
-	
 	--------------------------------------------------------------------------
 	-------------------------- LOOPING THROUGH ALL ---------------------------
 	--------------------------------------------------------------------------
 	
 	while true do
 		local obj,obid, key, message, state = nil,nil,nil,nil,nil
-		key, message = linda:receive(0.1, 'finished')
+		-- if new objects were dynamically added then add them to the list
+		key, message = linda:receive(0.0, 'insertNewObjs')
+		if message ~=nil then
+			obj, obid = unpack(message)
+			table.insert(allOBJs, obj)
+			table.insert(allOBJs, obid)
+		end
+		obj,obid, message= nil,nil,nil
+		-- get object that were executed on the thread
+		key, message = linda:receive(0.0, 'finished')
 		if message ~= nil then
 			obj, obid, state = unpack(message)
 			if state == 1 then
@@ -163,6 +109,72 @@ function start(allOBJs, lanes, linda)
 	
 	-- Finished with messaging
 	return 0
+end
+
+-------------------------------------------------------------------------------------
+-------------------------------FUNCTIONS USED ON LANES-------------------------------
+-------------------------------------------------------------------------------------
+
+function activeLane(OBJ, objID, NUM_OF_LOOPS, linda)
+	require "ActiveLua"
+	----------------------- Main -----------------------
+	while true do
+		if OBJ ~= nil and objID~=nil then
+			local state = runMain(OBJ, objID, NUM_OF_LOOPS, linda)
+			idAndObj = {OBJ, objID, state}
+			linda:send('finished', idAndObj)
+		end
+		local _, newObj = linda:receive(0.0, 'nextMessage')
+		if newObj ~= nil then
+			OBJ, objID = unpack(newObj)
+		else
+			OBJ,objID = nil,nil
+		end
+	end
+end
+
+function getMsg(obj, objectID,linda)
+	-- If timed out then no more messages for me
+	local key, message = linda:receive(0.0, objectID)
+	if message ~= nil then
+		--replace string id with the actual object
+		message[2]=obj
+		return message		
+	else
+		return nil
+	end
+end
+
+function execMsg(messageTable)
+	local tableElements={}
+	local values=""
+	local i=0
+	local keyset={}
+	for key, val in pairs(messageTable) do
+		i=i+1
+		keyset[i]=key
+		tableElements[i] = messageTable[keyset[i]]
+	end
+	to = tableElements[2]
+	fun = tableElements[3]
+	values = tableElements[4]
+
+	--run object function with args
+	assert(loadstring('to:'..fun..'(...)'))(unpack(values))
+end
+
+function runMain(obj, objID, NUM_OF_LOOPS, linda)
+	local x=0
+	local messagesForMe={}
+	for x=0, NUM_OF_LOOPS do
+		messagesForMe={}
+		messagesForMe = getMsg(obj, objID,linda)
+		if messagesForMe ~= nil then
+			execMsg(messagesForMe)
+
+		end
+	end
+	return 1
 end
 
 

@@ -30,12 +30,8 @@ int main(int argc, char *argv[])
 	}
 
 	/*-------------------Start Here-------------------*/
-	int testValue;
-	//char* someString = "this is a string in c";
-	//int someInteger = 5;
 
 	lua_pushstring(L, staticVarClass::someString);
-	//lua_pushinteger(L, testValue);
 	lua_setglobal(L, "someString");
 	if (lua_pcall(L, 0, LUA_MULTRET, 0)) {
 		std::cerr << "This is from c++ :\nSomething went wrong during execution" << std::endl;
@@ -47,18 +43,8 @@ int main(int argc, char *argv[])
 	lua_getglobal(L, "someString");
 	someString2 = lua_tostring(L, -1);
 
-	lua_getglobal(L, "testValue");
-	testValue = (int)lua_tonumber(L, -1);
-
-	/* To run code above do:
-
-	-- Anywhere in Lua
-	print(someString)
-	someString = "This string has been changed in Lua"
-
 	// Here in C++
 	printf("\n%s", someString2);
-	*/
 
 	/* Close lua file*/
 	lua_close(L);
